@@ -10,6 +10,11 @@ import VirgilToolbox from './VirgilToolbox';
 import { KeyEntryStorage } from 'virgil-sdk';
 import { WrongKeyknoxPasswordError, BootstrapRequiredError } from './errors';
 
+const LOCAL_STORAGE_NAME = 'virgil-local-storage';
+const LOCAL_DIR_NAME = '.' + LOCAL_STORAGE_NAME;
+const REMOTE_STORAGE_NAME = 'virgil-keyknox-storage';
+const REMOTE_DIR_NAME = '.' + REMOTE_STORAGE_NAME;
+
 type KeyPair = {
     privateKey: VirgilPrivateKey;
     publicKey: VirgilPublicKey;
@@ -33,8 +38,8 @@ export default class PrivateKeyLoader {
     private pythiaCrypto = new VirgilPythiaCrypto();
     private brainKey: IBrainKey;
     private syncStorage?: Promise<SyncKeyStorage>;
-    private localStorage: KeyEntryStorage;
-    private keyknoxStorage: KeyEntryStorage;
+    localStorage: KeyEntryStorage;
+    keyknoxStorage: KeyEntryStorage;
 
     constructor(private identity: string, public toolbox: VirgilToolbox) {
         this.brainKey = createBrainKey({
@@ -42,8 +47,14 @@ export default class PrivateKeyLoader {
             virgilPythiaCrypto: this.pythiaCrypto,
             accessTokenProvider: this.toolbox.jwtProvider,
         });
-        this.localStorage = new KeyEntryStorage({ name: 'local-storage' });
-        this.keyknoxStorage = new KeyEntryStorage({ name: 'keyknox-storage' });
+        this.localStorage = new KeyEntryStorage({
+            name: LOCAL_STORAGE_NAME,
+            dir: LOCAL_DIR_NAME,
+        });
+        this.keyknoxStorage = new KeyEntryStorage({
+            name: REMOTE_STORAGE_NAME,
+            dir: REMOTE_DIR_NAME,
+        });
     }
 
     async savePrivateKeyRemote(privateKey: VirgilPrivateKey, password: string, id?: string) {
@@ -54,17 +65,34 @@ export default class PrivateKeyLoader {
         );
     }
 
-    async savePrivateKeyLocal(privateKey: VirgilPrivateKey) {
+    async savePrivateKeyLocal(privateKey: VirgilPrivateKey, isPublished?: boolean) {
         return await this.localStorage.save({
             name: this.identity,
             value: this.toolbox.virgilCrypto.exportPrivateKey(privateKey),
+            meta: {
+                isPublished: isPublished ? isPublished.toString() : 'false',
+            },
+        });
+    }
+
+    async updatePrivateKeyLocal(isPublished: boolean) {
+        return await this.localStorage.update({
+            name: this.identity,
+            meta: {
+                isPublished: isPublished.toString(),
+            },
         });
     }
 
     async loadLocalPrivateKey() {
         const privateKeyData = await this.localStorage.load(this.identity);
-        if (!privateKeyData) return null;
-        return this.toolbox.virgilCrypto.importPrivateKey(privateKeyData.value) as VirgilPrivateKey;
+        if (!privateKeyData) return { privateKey: null, isPublished: false };
+        return {
+            privateKey: this.toolbox.virgilCrypto.importPrivateKey(
+                privateKeyData.value,
+            ) as VirgilPrivateKey,
+            isPublished: privateKeyData.meta ? privateKeyData.meta.isPublished === 'true' : false,
+        };
     }
 
     async resetLocalPrivateKey() {
@@ -113,7 +141,7 @@ export default class PrivateKeyLoader {
                     new KeyknoxCrypto(this.toolbox.virgilCrypto),
                 ),
             ),
-            new KeyEntryStorage('keyknox-storage'),
+            this.keyknoxStorage,
         );
         try {
             await storage.sync();

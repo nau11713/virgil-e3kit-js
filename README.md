@@ -37,7 +37,7 @@ You will need to add `@virgilsecurity/e3kit` script.
 
 ### Initialize & Bootstrap
 
-```
+```JavaScript
 import { EThree } from '@virgilsecurity/e3kit-js'
 // get virgil token from you backend (better to protect it!)
 const getToken = () => fetch('http://localhost:3000/get-virgil-jwt/')
@@ -52,7 +52,7 @@ await sdk.bootstrap('secret_password');
 
 ### Encrypt & Decrypt
 
-```
+```JavaScript
 const usersToEncryptTo = ["alice@myapp.com", "bob@myapp.com", 'sofia@myapp.com'];
 const userThatEncrypts = ["alex@myapp.com"];
 const [receiverPublicKeys, senderPublicKeys] = await Promise.all([

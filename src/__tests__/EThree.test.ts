@@ -51,8 +51,8 @@ const cardManager = new CardManager({
     retryOnUnauthorized: true,
 });
 
-const keyStorage = new KeyEntryStorage({ name: 'local-storage' });
-const keyknoxStorage = new KeyEntryStorage({ name: 'keyknox-storage' });
+const keyStorage = new KeyEntryStorage({ dir: '.virgil-local-storage' });
+const keyknoxStorage = new KeyEntryStorage({ dir: '.virgil-keyknox-storage' });
 
 const createFetchToken = (identity: string) => () =>
     Promise.resolve(generator.generateToken(identity).toString());
@@ -136,6 +136,11 @@ describe('local bootstrap (without password)', () => {
     it('has local key, has no card', async done => {
         const identity = 'virgiltestlocal2' + Date.now();
         const fetchToken = createFetchToken(identity);
+        keyStorage.save({
+            name: identity,
+            value: virgilCrypto.exportPrivateKey(virgilCrypto.generateKeys().privateKey),
+            meta: { isPublished: 'false' },
+        });
         const sdk = await EThree.init(fetchToken);
         await sdk.bootstrap();
         const cards = await cardManager.searchCards(identity);
@@ -150,6 +155,9 @@ describe('local bootstrap (without password)', () => {
         await keyStorage.save({
             name: identity,
             value: virgilCrypto.exportPrivateKey(keyPair.privateKey),
+            meta: {
+                isPublished: 'true',
+            },
         });
         const fetchToken = createFetchToken(identity);
         const prevCards = await cardManager.searchCards(identity);
@@ -230,7 +238,7 @@ describe('remote bootstrap (with password)', () => {
         await cloudStorage.storeEntry(identity, virgilCrypto.exportPrivateKey(keyPair.privateKey));
         expect(prevCards.length).toBe(1);
         const sdk = await EThree.init(fetchToken);
-        await sdk.bootstrap('secure_password');
+        await sdk.bootstrap('secret_password');
         const [cards, key] = await Promise.all([
             cardManager.searchCards(identity),
             keyStorage.load(identity),
